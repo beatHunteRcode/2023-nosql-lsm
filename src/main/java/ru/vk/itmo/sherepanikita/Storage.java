@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 public class Storage {
 
@@ -20,7 +21,6 @@ public class Storage {
 
     private final Path filePath;
 
-    MemorySegment indexSegment;
     MemorySegment dataSegment;
 
     private final Arena arena;
@@ -30,6 +30,7 @@ public class Storage {
         arena = Arena.ofShared();
 
         try (FileChannel fileChannel = FileChannel.open(filePath, StandardOpenOption.READ)){
+            indexSegment = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0)
             dataSegment = fileChannel.map(FileChannel.MapMode.READ_ONLY, 0, Files.size(filePath), arena);
         }
 
@@ -73,15 +74,11 @@ public class Storage {
 
         private long indexOffset;
 
-        private Long currentKeyOffset = null;
-        private Long currentKeySize = null;
+        private Long currentOffset = null;
+        private Long currentSize = null;
 
         public StorageIterator(MemorySegment from, MemorySegment to) {
-            if (from == null) {
-                this.indexOffset = 0;
-            } else {
-                this.indexOffset = binarySearch(from, to);
-            }
+            indexOffset = binarySearch(dataSegment, from);
             this.to = to;
         }
 
@@ -93,28 +90,40 @@ public class Storage {
             if (to == null) {
                 return true;
             }
-            this.currentKeyOffset = indexSegment.get(ValueLayout.JAVA_LONG_UNALIGNED, indexOffset);
-            this.currentKeySize = dataSegment.get(ValueLayout.JAVA_LONG_UNALIGNED, currentKeyOffset);
 
-            long fromOffset = currentKeyOffset + Long.BYTES;
+            currentSize = dataSegment.get(ValueLayout.JAVA_LONG_UNALIGNED, currentOffset);
+
+            long fromOffset = currentOffset + Long.BYTES;
 
             return new MemorySegmentComparator().compareWithOffset(
                     to,
                     dataSegment,
                     fromOffset,
-                    fromOffset + currentKeySize
+                    fromOffset + currentSize
             ) > 0;
         }
 
         @Override
         public Entry<MemorySegment> next() {
-            long offset = 0L;
+            if (!hasNext()) {
+                throw new NoSuchElementException();
+            }
+            long offset;
+            long size;
+            if (currentOffset == null || currentSize == null) {
+                offset = indexSegment.get(ValueLayout.JAVA_LONG_UNALIGNED, indexOffset);
+                size = dataSegment.get(ValueLayout.JAVA_LONG_UNALIGNED, offset);
+            } else {
+                offset = currentOffset;
+                size = currentSize;
+            }
+
+            indexOffset += Long.BYTES;
             offset += Long.BYTES;
 
-            long keySize = dataSegment.get(ValueLayout.JAVA_LONG_UNALIGNED, offset);
             long valueSize = dataSegment.get(ValueLayout.JAVA_LONG_UNALIGNED, offset);
 
-            MemorySegment key = dataSegment.asSlice(offset, keySize);
+            MemorySegment key = dataSegment.asSlice(offset, size);
             MemorySegment value = dataSegment.asSlice(offset + Long.BYTES, valueSize);
 
             return new BaseEntry<>(key, value);

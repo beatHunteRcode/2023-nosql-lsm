@@ -9,10 +9,12 @@ import java.util.NavigableMap;
 public class PeekIterator implements Iterator<Entry<MemorySegment>> {
 
     private final Iterator<Entry<MemorySegment>> iterator;
+    private final int priorityIndex;
     private Entry<MemorySegment> currentEntry;
 
-    PeekIterator(Iterator<Entry<MemorySegment>> iterator) {
+    PeekIterator(Iterator<Entry<MemorySegment>> iterator, int priorityIndex) {
         this.iterator = iterator;
+        this.priorityIndex = priorityIndex;
     }
 
     @Override
@@ -26,7 +28,18 @@ public class PeekIterator implements Iterator<Entry<MemorySegment>> {
         return currentEntry;
     }
 
+    public Entry<MemorySegment> peek() {
+        if (currentEntry == null) {
+            currentEntry = iterator.next();
+        }
+        return currentEntry;
+    }
+
     public Entry<MemorySegment> getCurrentEntry() {
         return currentEntry;
+    }
+
+    public int getPriorityIndex() {
+        return priorityIndex;
     }
 }

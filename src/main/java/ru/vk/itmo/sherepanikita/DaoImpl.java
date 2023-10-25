@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -46,17 +45,6 @@ public class DaoImpl implements Dao<MemorySegment, Entry<MemorySegment>> {
             iterators.add(new PeekIterator(storage.getIterator(from, to)));
         }
         return new MergeIterator(iterators);
-    }
-
-    public Iterator<Entry<MemorySegment>> getFromMemory(MemorySegment from, MemorySegment to) {
-        if (from == null && to == null) {
-            return segments.values().iterator();
-        } else if (from == null) {
-            return segments.headMap(to).values().iterator();
-        } else if (to == null) {
-            return segments.tailMap(from).values().iterator();
-        }
-        return segments.subMap(from, to).values().iterator();
     }
 
 
